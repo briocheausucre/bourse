@@ -18,6 +18,17 @@ def get_stock_info(stock_symbol):
         return None
 
 
+def print_stock_parameters(stock_symbol):
+    """Print all available stock information parameters in a readable format."""
+    stock_data = get_stock_info(stock_symbol)
+    
+    if stock_data:
+        print(f"\nAvailable parameters for {stock_symbol}:\n")
+        for i, key in enumerate(sorted(stock_data.keys()), 1):
+            print(f"{i:2d}. {key}")
+    else:
+        print("No data found")
+
+
 # Example usage:
-stock_data = get_stock_info('AAPL')
-print(stock_data)
+print_stock_parameters('AAPL')
