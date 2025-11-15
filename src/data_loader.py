@@ -68,7 +68,7 @@ EUROSTOXX50_COMPONENTS: List[Dict[str, str]] = [
     {"ticker": "ISP.MI",  "company": "Intesa Sanpaolo"},
     {"ticker": "UCG.MI",  "company": "UniCredit"},
     {"ticker": "RACE.MI", "company": "Ferrari"},
-    {"ticker": "STM.MI",  "company": "STMicroelectronics"},
+    {"ticker": "STMMI.MI",  "company": "STMicroelectronics"},
 
     # Belgique
     {"ticker": "ABI.BR",  "company": "AB InBev"},
