@@ -20,7 +20,9 @@ HORIZON_3M_DAYS = 63           # 3 mois
 START_DATE = "2004-01-01"
 END_DATE = "2025-01-01"
 
-HIST_MIN_DATE = pd.Timestamp("2005-01-01")
+DOWNLOAD_START_DATE = (pd.Timestamp(START_DATE) - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
+
+HIST_MIN_DATE = pd.Timestamp(START_DATE)
 HIST_MAX_DATE = pd.Timestamp("2024-12-31")
 COVID_START = pd.Timestamp("2020-01-01")
 COVID_END = pd.Timestamp("2021-12-31")
@@ -136,11 +138,12 @@ def compute_beta(stock_returns: pd.Series, index_returns: pd.Series) -> float:
 def download_history(ticker: str) -> pd.DataFrame:
     """
     Télécharge l'historique complet pour un ticker.
+    On commence 60 jours avant START_DATE pour avoir assez de données pour le bêta.
     """
     print(f"Downloading history for {ticker}...")
     df = yf.download(
         ticker,
-        start=START_DATE,
+        start=DOWNLOAD_START_DATE,   # <-- CHANGEMENT ICI
         end=END_DATE,
         interval="1d",
         auto_adjust=True,
@@ -223,7 +226,6 @@ def compute_metrics_at_position(
     # 6) beta_1y_vs_stoxx50 (1 an de données index jusqu'à date)
     beta_1y_vs_stoxx50 = np.nan
     if not index_hist.empty:
-        # sous-série index jusqu'à la date
         idx_slice = index_hist.loc[:date]
         idx_returns = idx_slice["Close"].astype(float).pct_change()
         beta_1y_vs_stoxx50 = compute_beta(daily_returns, idx_returns)
@@ -277,13 +279,14 @@ def build_eligible_positions(
     Retourne la liste des indices de lignes utilisables pour un ticker :
     - suffisamment de lookback (min_lookback_days)
     - suffisamment de données futures (forward_days)
-    - date entre 2005 et 2024
+    - date entre START_DATE et HIST_MAX_DATE
     - hors période Covid (2020-2021 inclus)
     """
     eligible = []
     n = len(hist)
     for idx in range(min_lookback_days, n - forward_days):
         date = hist.index[idx]
+        # IMPORTANT : on ne garde que les dates >= START_DATE (HIST_MIN_DATE)
         if date < HIST_MIN_DATE or date > HIST_MAX_DATE:
             continue
         if COVID_START <= date <= COVID_END:
@@ -300,7 +303,7 @@ def main():
     try:
         idx_hist = yf.download(
             "^STOXX50E",
-            start=START_DATE,
+            start=DOWNLOAD_START_DATE,   # <-- CHANGEMENT ICI
             end=END_DATE,
             interval="1d",
             auto_adjust=True,
@@ -331,7 +334,6 @@ def main():
             continue
         histories[tk] = hist
 
-        # positions éligibles
         eligible_idx = build_eligible_positions(
             hist,
             min_lookback_days=TRADING_DAYS_PER_YEAR,  # pour momentum 12m, beta, DD, etc.
@@ -341,7 +343,7 @@ def main():
             print(f"  [WARN] Aucun point éligible pour {tk}.")
         eligible_map[tk] = eligible_idx
 
-        # récupérer le nombre d'actions en circulation (shares_outstanding) pour calculer la market cap historique
+        # récupérer le nombre d'actions en circulation
         try:
             info = yf.Ticker(tk).fast_info
             shares_out = float(getattr(info, "shares", np.nan))
@@ -374,7 +376,6 @@ def main():
         company = comp["company"]
         shares_out = shares_map.get(tk, np.nan)
 
-        # métriques à la date
         metrics = compute_metrics_at_position(
             ticker=tk,
             company=company,
@@ -384,7 +385,7 @@ def main():
             shares_outstanding=shares_out,
         )
         if not metrics:
-            continue  # on skippe cette instance
+            continue
 
         # rendement futur à 3 mois
         if idx_pos + HORIZON_3M_DAYS >= len(hist):
@@ -400,11 +401,9 @@ def main():
 
     # 4) DataFrame + CSV
     df = pd.DataFrame(rows)
-    # df = df.sort_values(["date", "ticker"]).reset_index(drop=True) # tri 
-
     output_path = os.path.join("data", "dataset_3m.csv")
     df.to_csv(output_path, index=False, encoding="utf-8")
-    print(f"\n Dataset téléchargé : {output_path}")
+    print(f"\nDataset téléchargé : {output_path}")
     print(f"{len(df)} lignes enregistrées (demandé: {N_INSTANCES}).")
     print(df.head())
 
